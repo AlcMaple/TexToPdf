@@ -66,6 +66,17 @@ cd TexToPdf
 pip install -r requirements.txt
 ```
 
+- 安装 TeX 环境
+
+```bash
+brew install --cask basictex
+# 将TeX二进制文件路径添加到PATH
+echo 'export PATH=$PATH:/Library/TeX/texbin' >> ~/.zshrc
+source ~/.zshrc
+# 验证pdflatex是否正确安装
+pdflatex --version
+```
+
 ## 使用方法
 
 - 启动服务器
@@ -80,12 +91,11 @@ python app.py
 | 状态 | 功能 | 备注 |
 |:---:|---|---|
 | ✅ | 项目基础结构 | 基本文件结构和模块划分 |
-| ⬜ | TeX 编译核心功能 | 使用 pdflatex 编译 TeX 代码 |
-| ⬜ | API 路由设置 | RESTful API 接口实现 |
+| ✅ | TeX 编译核心功能 | 使用 pdflatex 编译 TeX 代码 |
+| ✅ | API 路由设置 | RESTful API 接口实现 |
 | ⬜ | 错误处理机制 | 捕获和格式化编译错误 |
-| ⬜ | PDF 生成和管理 | 生成、存储和提供 PDF 下载 |
-| ⬜ | 性能优化 | 加快编译速度 |
-| ⬜ | 临时文件管理 | 自动清理和维护临时文件 |
+| ✅ | PDF 生成和管理 | 生成、存储和提供 PDF 下载 |
+| ✅ | 临时文件管理 | 自动清理和维护临时文件 |
 
 ### 📋 文档和示例
 | 状态 | 任务 | 备注 |
