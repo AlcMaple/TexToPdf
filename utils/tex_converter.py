@@ -38,36 +38,50 @@ class TexConverter:
 
         try:
             # 创建临时工作目录
+            logger.info(f"创建工作目录: {work_dir}")
             os.makedirs(work_dir, exist_ok=True)
 
             # 保存TeX代码到临时文件
             tex_file_path = os.path.join(work_dir, f"{file_id}.tex")
+            logger.info(f"保存TeX代码到: {tex_file_path}")
+
             with open(tex_file_path, "w", encoding="utf-8") as f:
                 f.write(tex_code)
 
+            # 编译前检查文件是否正确创建
+            if not os.path.exists(tex_file_path):
+                logger.error(f"TeX文件未能成功创建: {tex_file_path}")
+                return False, "TeX文件创建失败"
+
             # 编译TeX文件
+            logger.info("开始编译TeX文件")
             result = self._run_pdflatex(tex_file_path, work_dir)
 
             if not result["success"]:
-                return False, result["error"]
+                return False, result
 
             # 生成的PDF文件路径
             pdf_file_path = os.path.join(work_dir, f"{file_id}.pdf")
 
             # 检查PDF文件是否存在和有效
             if not os.path.exists(pdf_file_path):
+                logger.error(f"PDF文件生成失败: {pdf_file_path}")
                 return False, "PDF文件生成失败"
 
             try:
                 # 验证PDF文件是否可读
                 PdfReader(pdf_file_path)
+                logger.info(f"PDF文件验证成功: {pdf_file_path}")
             except Exception as e:
+                logger.error(f"生成的PDF文件无效: {str(e)}")
                 return False, f"生成的PDF文件无效: {str(e)}"
 
             return True, pdf_file_path
 
         except Exception as e:
             logger.error(f"TeX编译过程中发生错误: {str(e)}")
+            # 记录完整堆栈跟踪
+            logger.exception("异常详情")
             # 清理临时文件
             self._clean_temp_files(work_dir)
             return False, f"编译过程中发生错误: {str(e)}"
@@ -84,17 +98,42 @@ class TexConverter:
             dict: 包含编译结果的字典
         """
         try:
+            # 获取文件名（不包含路径）
+            file_name = os.path.basename(tex_file_path)
+            # 确保文件路径正确
+            logger.info(f"TeX文件路径: {tex_file_path}")
+            logger.info(f"工作目录: {work_dir}")
+            logger.info(f"TeX文件是否存在: {os.path.exists(tex_file_path)}")
 
-            # 运行pdflatex命令，指定非交互模式(-interaction=nonstopmode)
+            # 显示文件内容
+            try:
+                with open(tex_file_path, "r", encoding="utf-8") as f:
+                    tex_content = f.read()
+                    logger.info(f"TeX文件内容: {tex_content}")
+            except Exception as e:
+                logger.error(f"读取TeX文件内容时出错: {str(e)}")
+
+            # 仅传递文件名而不是完整路径
+            cmd = ["pdflatex", "-interaction=nonstopmode", file_name]
+            logger.info(f"运行命令: {' '.join(cmd)}")
+
+            # 运行pdflatex命令
             process = subprocess.Popen(
-                ["pdflatex", "-interaction=nonstopmode", tex_file_path],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=work_dir,
+                text=True,  # 将输出作为文本而不是字节
             )
 
             # 等待编译完成
             stdout, stderr = process.communicate(timeout=60)  # 60秒超时
+            logger.info(f"命令标准输出: {stdout[:500]}...")
+            logger.info(f"命令错误输出: {stderr[:500] if stderr else '无错误输出'}")
+            logger.info(f"返回代码: {process.returncode}")
+
+            # 列出工作目录中的文件
+            logger.info(f"工作目录中的文件: {os.listdir(work_dir)}")
 
             # 检查编译是否成功
             if process.returncode != 0:
@@ -107,7 +146,7 @@ class TexConverter:
                 if os.path.exists(error_log):
                     with open(error_log, "r", encoding="utf-8", errors="ignore") as f:
                         log_content = f.read()
-                    logger.error(f"编译日志内容: {log_content[:500]}...")
+                    logger.error(f"编译日志内容: {log_content[:1000]}...")
 
                     # 寻找错误消息 (! 开头)
                     import re
@@ -119,7 +158,25 @@ class TexConverter:
                         error_message = error_matches[0].strip()
                         logger.error(f"提取的错误信息: {error_message}")
 
-                return {"success": False, "error": error_message}
+                    return {
+                        "success": False,
+                        "error": error_message,
+                        "log": log_content,
+                    }
+                else:
+                    logger.error(f"找不到编译日志: {error_log}")
+
+                return {
+                    "success": False,
+                    "error": error_message + "（无法找到详细错误信息）",
+                }
+
+            # 检查是否生成了PDF文件
+            pdf_path = os.path.join(
+                work_dir, f"{os.path.basename(tex_file_path)[:-4]}.pdf"
+            )
+            logger.info(f"PDF文件路径: {pdf_path}")
+            logger.info(f"PDF文件是否存在: {os.path.exists(pdf_path)}")
 
             return {"success": True}
 
@@ -129,6 +186,7 @@ class TexConverter:
             return {"success": False, "error": "编译超时"}
         except Exception as e:
             logger.error(f"编译过程中发生异常: {str(e)}")
+            logger.exception("异常详情")
             return {"success": False, "error": str(e)}
 
     def _clean_temp_files(self, directory):
